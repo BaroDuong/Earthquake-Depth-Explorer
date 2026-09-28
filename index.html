@@ -1,75 +1,80 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Quake Monitor | Real-time Earthquake Tracking</title>
-    
-    <script src="https://unpkg.com/three@0.136.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/globe.gl@2.32.2/dist/globe.gl.min.js"></script>
-
-    <link rel="stylesheet" href="css/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Earthquake Depth Explorer</title>
+  <script src="https://unpkg.com/three@0.136.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.136.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/globe.gl@2.32.2/dist/globe.gl.min.js"></script>
+  <link rel="stylesheet" href="css/style.css?v=20260928-6">
 </head>
 <body>
-    <button id="ui-toggle" title="Hide/Show UI">👁️</button>
-    
-    <div id="loader">Loading...</div>
-
-    <div id="ui-layer">
-        
-        <div id="dashboard" class="panel">
-            <h1>Quake Monitor <span id="status-indicator">LIVE</span></h1>
-            
-            <div class="data-row">
-                <span class="data-label">Events Found</span>
-                <span class="data-value" id="val-count">--</span>
-            </div>
-            <div class="data-row">
-                <span class="data-label">Seismic Peak</span>
-                <span class="data-value" id="val-last" title="No data">--</span>
-            </div>
-
-            <div id="filter-section">
-                <div class="filter-title">Historical Search</div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <div class="input-group" style="flex: 1;">
-                        <label for="input-start">From (Date)</label>
-                        <input type="date" id="input-start">
-                    </div>
-                    <div class="input-group" style="flex: 1;">
-                        <label for="input-end">To (Date)</label>
-                        <input type="date" id="input-end">
-                    </div>
-                </div>
-                
-                <div class="input-group">
-                    <label for="input-mag">Minimum Magnitude (Richter)</label>
-                    <input type="number" id="input-mag" step="0.1" value="4.5" min="1.0" max="9.9">
-                </div>
-                
-                <div class="button-group">
-                    <button id="btn-live">Back to Live</button>
-                    <button id="btn-query">Filter Map</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="legend" class="panel">
-            <div class="legend-row">
-                Critical (M > 5.0) <div class="dot" style="background: var(--color-critical); color: var(--color-critical);"></div>
-            </div>
-            <div class="legend-row">
-                Warning (M 2.5 - 5.0) <div class="dot" style="background: var(--color-moderate); color: var(--color-moderate);"></div>
-            </div>
-            <div class="legend-row">
-                Minor (M &lt; 2.5) <div class="dot" style="background: var(--color-light); color: var(--color-light);"></div>
-            </div>
-        </div>
+  <header class="app-header">
+    <div><p class="eyebrow" id="source-heading">USGS · worldwide · latest 30 days</p><h1>Earthquake Depth Explorer</h1><p class="subtitle">Explore earthquake hypocenters from the surface into the Earth</p></div>
+    <div class="header-actions">
+      <div class="source-control">
+        <button id="refresh-now" type="button" aria-label="Refresh USGS earthquake data" aria-describedby="source-status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.4-5.7M20 4v7h-7"/></svg></button>
+        <div id="source-status" class="source-tooltip" role="status">Loading data…</div>
+      </div>
+      <span class="badge" id="count">Loading…</span>
     </div>
-
-    <div id="globeViz"></div>
-
-    <script src="js/script.js"></script>
+  </header>
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card study-card">
+        <div class="card-heading"><h2>Study area</h2><div class="info-control"><button type="button" aria-label="About the study area" aria-describedby="region-note">i</button><div id="region-note" class="info-tooltip" role="tooltip">Loading country boundaries…</div></div></div>
+        <label for="region-search">Worldwide or a country/area</label>
+        <div class="country-picker">
+          <input id="region-search" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="country-options" autocomplete="off" placeholder="Search countries or areas…" value="Loading areas…">
+          <div id="country-options" class="country-options" role="listbox" hidden></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>T1 · Filter events</h2>
+        <div class="field-row"><label>From date (UTC)<input id="date-start" type="date"></label><label>To date (UTC)<input id="date-end" type="date"></label></div>
+        <div class="field-row"><label>Magnitude from<input id="mag-min" type="number" min="0" max="10" step="0.1" value="4.5"></label><label>to<input id="mag-max" type="number" min="0" max="10" step="0.1" value="10"></label></div>
+        <div class="field-row"><label>Depth from (km)<input id="depth-min" type="number" min="0" step="1" value="0"></label><label>to (km)<input id="depth-max" type="number" min="0" step="1" value="700"></label></div>
+        <p id="filter-error" class="error" role="alert"></p>
+        <button id="reset-filters" type="button">Reset filters</button>
+      </section>
+      <section id="event-card" class="card" hidden>
+        <h2>Selected earthquake</h2>
+        <div id="event-detail" aria-live="polite"></div>
+      </section>
+      <section class="card guide">
+        <h2>Quick guide</h2>
+        <p><b>T1</b> Start worldwide or choose an area; change dates, magnitude, or depth. All three views update together.</p>
+        <p><b>T2</b> Drag to rotate and scroll to zoom. Switch views or reset the camera.</p>
+        <p><b>T3</b> Select a point in any view; its details appear on the left. Selecting in 02 or 03 turns the globe to that event. Click it again or use Clear selection to deselect.</p>
+      </section>
+    </aside>
+    <div class="views">
+      <section class="view-card globe-card" aria-label="Overview globe">
+        <div class="view-heading"><div><span class="view-index">01 / OVERVIEW</span><h2>Globe</h2></div><p>Color = depth · column size/height = magnitude · white = selected</p></div>
+        <div id="globeViz" class="canvas-host"></div>
+        <div class="globe-key" aria-label="Globe column magnitude guide">
+          <span class="globe-key-title">Magnitude <small>Taller and wider columns = stronger earthquakes</small></span>
+          <span class="mag-example"><span class="mag-sample mag-small"></span><span>M4.5</span></span>
+          <span class="mag-example"><span class="mag-sample mag-medium"></span><span>M6</span></span>
+          <span class="mag-example"><span class="mag-sample mag-large"></span><span>M8</span></span>
+        </div>
+      </section>
+      <section class="view-card volume-card" aria-label="3D hypocenter volume">
+        <div class="view-heading"><div><span class="view-index">02 / MAIN ANALYSIS</span><h2>3D hypocenter volume</h2></div><p>East–West / North–South / depth (km)</p></div>
+        <div class="toolbar" role="group" aria-label="3D camera view"><button data-view="3d" class="active">3D</button><button data-view="top">Top</button><button data-view="side">Side</button><button id="reset-camera">Reset camera</button></div>
+        <div id="volumeViz" class="canvas-host"></div>
+        <div class="volume-key" aria-label="Approximate 3D point size by magnitude"><b>Point size = magnitude</b><span><i class="volume-dot volume-dot-small"></i>M4.5</span><span><i class="volume-dot volume-dot-medium"></i>M6</span><span><i class="volume-dot volume-dot-large"></i>M8</span></div>
+        <p class="axis-note">Blue plane = 0 km · depth increases downward · displayed depth ×<span id="depth-factor">1</span>. Selecting a point highlights it without moving its measured depth.</p>
+      </section>
+      <section class="view-card map-card" aria-label="2D top-down comparison">
+        <div class="view-heading"><div><span class="view-index">03 / COMPARISON</span><h2>2D top-down projection</h2></div><p>Same events, East–West and North–South only</p></div>
+        <div class="map-wrap"><svg id="map2d" role="img" aria-label="Top-down projection of earthquake locations"></svg></div>
+        <p class="comparison" id="comparison-note">Worldwide view provides context. Select a country or area for a more useful depth comparison.</p>
+      </section>
+    </div>
+  </main>
+  <footer><div class="legend"><b>Depth · all views</b><span class="swatch shallow"></span> 0–70 km <span class="swatch middle"></span> 70–300 km <span class="swatch deep"></span> &gt;300 km <span class="swatch selected"></span> selected event <span class="legend-size">● Point size → magnitude; globe column height → magnitude</span></div><p>Earthquakes: <a href="https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php" target="_blank" rel="noopener">USGS</a>. Country boundaries: <a href="https://www.naturalearthdata.com/downloads/50m-cultural-vectors/50m-admin-0-countries-2/" target="_blank" rel="noopener">Natural Earth 1:50m</a>. Country views use the mapped boundary plus events within 200 km; negative depths are excluded. Extended from <a href="https://github.com/Vor7reX/Global-Quake-Monitor" target="_blank" rel="noopener">Vor7reX's Global Quake Monitor</a> under the <a href="LICENSE.md">MIT license</a>.</p></footer>
+  <script src="js/script.js?v=20260928-7"></script>
 </body>
 </html>
